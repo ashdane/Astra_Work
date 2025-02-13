@@ -35,7 +35,7 @@ class OffboardControlNode(Node):
           self.vel_cmd = Twist()
           self.vel_cmd.linear.x = 0.0  # Velocity in the x-direction (m/s)
           self.vel_cmd.linear.y = 0.0
-          self.vel_cmd.linear.z = 3.0  # Ascent velocity (m/s)
+          self.vel_cmd.linear.z = 1.0  # Ascent velocity (m/s)
 
           self.last_req=self.get_clock().now()
 
@@ -43,7 +43,7 @@ class OffboardControlNode(Node):
 
           #self.radius=10.0
           #self.Theta=0
-          self.dt=0.05
+          self.dt=0.20
 
      def state_cb(self,msg):
           self.current_state=msg
@@ -92,7 +92,7 @@ class OffboardControlNode(Node):
                     self.vel_cmd.linear.z = 0.0
                     self.vel_cmd.linear.x = 0.0
                if (self.get_clock().now()-self.last_req)> Duration(seconds=20):
-                    self.vel_cmd.linear.x = 1.0
+                    self.vel_cmd.linear.x += self.dt
           #self.pose.pose.position.x=self.radius*cos(self.Theta)
           #self.pose.pose.position.y=self.radius*sin(self.Theta)
           #self.pose.pose.position.z=2.0
