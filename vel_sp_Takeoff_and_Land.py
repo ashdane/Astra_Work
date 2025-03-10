@@ -27,7 +27,7 @@ class OffboardControlNode(Node):
         # Initialize velocity command
         self.vel_cmd = Twist()
         self.last_req = self.get_clock().now()
-        self.dt = 0.01
+        # self.dt = 0.01
 
         self.create_timer(1.0, self.state_transition_callback)  
         self.create_timer(0.05, self.velocity_update_callback)  
@@ -73,32 +73,38 @@ class OffboardControlNode(Node):
                 self.last_req = now
             self.get_logger().info("Sending arm command")
 
+    def set_flight_mode(self, mode):
+        req = SetMode.Request()
+        req.custom_mode = mode
+        future = self.set_mode_client.call_async(req)
+        future.add_done_callback(self.response_callback)
+        self.get_logger().info(f"Setting mode: {mode}")
+
     def velocity_update_callback(self):
         with self.lock:
             current_mode = self.current_state.mode
             now = self.get_clock().now()
             time_since_last_req = now - self.last_req
-            hover_sent = self.HoverSent
-            check_flag = self.check
 
         if current_mode == 'OFFBOARD':
-            if time_since_last_req > Duration(seconds=12) and not hover_sent:
+            if time_since_last_req < Duration(seconds=12):  # Takeoff for 12s
                 with self.lock:
-                    self.HoverSent = True
-                    self.vel_cmd.linear.z = 0.0
-                    self.vel_cmd.linear.y = 0.0
-                    self.vel_cmd.linear.x = 0.0
+                    self.vel_cmd.linear.z = 1.0  # Ascent
 
+            elif time_since_last_req < Duration(seconds=40):  # Hover for 30s
+                with self.lock:
+                    self.vel_cmd.linear.z = 0.0  # Hover
 
-        # Publish velocity command
+            elif time_since_last_req >= Duration(seconds=42):  # Begin landing
+                with self.lock:
+                    self.LandSent = True
+                self.land_drone()               
+            
         if not self.LandSent:
             with self.lock:
-                self.vel_pub.publish(self.vel_cmd)
+                self.vel_pub.publish(self.vel_cmd)  # Ensure veloc
 
-        # Handle ascent
-        if not hover_sent and check_flag:
-            with self.lock:
-                self.vel_cmd.linear.z = min(self.vel_cmd.linear.z + self.dt, 1.0)
+
 
     def landing_check_callback(self):
         with self.lock:
@@ -106,7 +112,7 @@ class OffboardControlNode(Node):
             now = self.get_clock().now()
             time_since_last_req = now - self.last_req
 
-        if current_mode == 'OFFBOARD' and time_since_last_req > Duration(seconds=22):
+        if current_mode == 'OFFBOARD' and time_since_last_req > Duration(seconds=44):
             self.get_logger().info("Initiating landing sequence")
             with self.lock:
                 self.vel_cmd.linear.x = 0.0
